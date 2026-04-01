@@ -73,12 +73,23 @@ CREATE TABLE bundle_item (
   bundle_id INTEGER NOT NULL,
   product_id INTEGER NOT NULL,
   quantity INTEGER NOT NULL DEFAULT 1,
-  item_role ENUM('INCLUDED', 'OPTIONAL', 'UPSELL') NOT NULL,
-  extra_price DECIMAL(12,2),
   created_at TIMESTAMP,
   CONSTRAINT fk_bundle_item_bundle
     FOREIGN KEY (bundle_id) REFERENCES bundle(id),
   CONSTRAINT fk_bundle_item_product
+    FOREIGN KEY (product_id) REFERENCES product(id)
+);
+
+CREATE TABLE offer_optional_product (
+  id INTEGER PRIMARY KEY,
+  target_type ENUM('PRODUCT', 'BUNDLE') NOT NULL,
+  target_external_id INTEGER NOT NULL,
+  product_id INTEGER NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  optional_type ENUM('OPTIONAL', 'UPSELL') NOT NULL,
+  extra_price DECIMAL(12,2),
+  created_at TIMESTAMP,
+  CONSTRAINT fk_offer_optional_product_product
     FOREIGN KEY (product_id) REFERENCES product(id)
 );
 
