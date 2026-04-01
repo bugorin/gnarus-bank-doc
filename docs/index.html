@@ -46,16 +46,12 @@ VALUES
       },
       {
         label: "Oferta",
-        title: "02. Segmentos, produtos, bundles e meios de pagamento",
-        copy: `Esta camada define a oferta disponível em cada operação comercial.
+        title: "02. Segmentos, produtos e bundles",
+        copy: `Esta camada define a composição da oferta disponível em cada operação comercial.
 
-Ela organiza segmentos, produtos, bundles e meios de pagamento dentro de uma mesma lógica comercial.
+Ela organiza segmentos, produtos e bundles dentro de uma mesma lógica comercial.
 
 Os segmentos estruturam o catálogo. Os produtos representam ofertas simples. Os bundles representam ofertas compostas.
-
-Os meios de pagamento completam essa camada, porque também fazem parte da estratégia comercial da oferta.
-
-A política de parcelamento e incentivo por pagamento pode ser definida pela combinação entre oferta e meio de pagamento.
 
 ### Regras da camada
 
@@ -71,60 +67,165 @@ A política de parcelamento e incentivo por pagamento pode ser definida pela com
 - \`DISCOUNTED_SUM\`: o preço é a soma dos itens com desconto.
 - \`CUSTOM\`: o preço segue uma regra específica.
 
-#### Hierarquia para pagamento e parcelamento
+#### Relação entre \`pricing_type\` e itens do bundle
 
-1. Regra específica da oferta.
-2. Regra do segmento.
-3. Regra padrão do meio de pagamento.`,
-        diagram: `erDiagram
-  SALES_CONTEXT ||--o{ PRODUCT_SEGMENT : "1:N"
-  PRODUCT_SEGMENT ||--o{ PRODUCT : "1:N"
-  PRODUCT_SEGMENT ||--o{ BUNDLE : "1:N"
-  BUNDLE ||--o{ BUNDLE_ITEM : "1:N"
-  PRODUCT ||--o{ BUNDLE_ITEM : "1:N"
-  SALES_CONTEXT ||--o{ PAYMENT_OPTION : "1:N"
-  PAYMENT_OPTION ||--o{ OFFER_PAYMENT_OPTION : "1:N"`,
-        sql: `INSERT INTO product_segment (id, context_id, name, code, description, created_at, updated_at)
+- \`pricing_type\` define o preço da composição base do bundle.
+- \`item_role\` define o papel comercial de cada item dentro dessa composição.
+- \`extra_price\` representa o acréscimo de itens opcionais, como no caso de "por mais X reais, leve também".
+- Para itens \`INCLUDED\`, o valor já faz parte da composição base.
+- Para itens \`OPTIONAL\` ou \`UPSELL\`, o valor adicional pode ser definido em \`extra_price\`.
+
+### Combinações possíveis
+
+- Segmento com apenas produtos simples.
+- Segmento com produtos simples e bundles na mesma linha comercial.
+- Bundle com todos os itens incluídos no preço base.
+- Bundle com item opcional e acréscimo de valor.
+- Bundle com item de upsell para ampliar ticket médio.`,
+        subsections: [
+          {
+            title: "2.1 Segmento com produtos simples",
+            copy: `Um segmento pode agrupar ofertas simples de uma mesma linha comercial. Esse é o caso mais direto do catálogo, em que o cliente escolhe um produto individual sem composição adicional.`,
+            sql: `INSERT INTO product_segment (id, context_id, name, code, description, created_at, updated_at)
 VALUES
-  (1, 1, 'Planos Anuais', 'PLANOS_ANUAIS', 'Ofertas recorrentes com opcao de Plus, Pro e UltraLab', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  (2, 1, 'Cursos Avulsos', 'CURSOS_AVULSOS', 'Produtos de compra pontual', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+  (1, 1, 'Planos Anuais', 'PLANOS_ANUAIS', 'Ofertas recorrentes com opcao de Plus, Pro e UltraLab', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO product (id, product_segment_id, name, sku, price, is_recurring, auto_renew_default, status, created_at, updated_at)
 VALUES
   (1, 1, 'Plano Anual Plus', 'PLANO_PLUS_ANUAL', 129.90, TRUE, TRUE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   (2, 1, 'Plano Anual Pro', 'PLANO_PRO_ANUAL', 189.90, TRUE, TRUE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  (3, 1, 'Plano Anual UltraLab', 'PLANO_ULTRALAB_ANUAL', 249.90, TRUE, TRUE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (3, 1, 'Plano Anual UltraLab', 'PLANO_ULTRALAB_ANUAL', 249.90, TRUE, TRUE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`
+          },
+          {
+            title: "2.2 Segmento com produtos e bundle",
+            copy: `Um mesmo segmento pode combinar produtos simples com bundles, permitindo estruturar uma linha comercial com entrada individual e oferta composta no mesmo contexto.`,
+            sql: `INSERT INTO product_segment (id, context_id, name, code, description, created_at, updated_at)
+VALUES
+  (2, 1, 'Cursos Avulsos', 'CURSOS_AVULSOS', 'Produtos de compra pontual', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO product (id, product_segment_id, name, sku, price, is_recurring, auto_renew_default, status, created_at, updated_at)
+VALUES
   (4, 2, 'Imersao IA', 'IMERSAO_IA', 299.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   (5, 2, 'Curso de Lideranca', 'CURSO_LIDERANCA', 199.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO bundle (id, product_segment_id, name, pricing_type, price, is_recurring, auto_renew_default, status, created_at, updated_at)
 VALUES
-  (1, 2, 'Combo IA + Lideranca', 'FIXED', 449.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+  (1, 2, 'Combo IA + Lideranca', 'FIXED', 449.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`
+          },
+          {
+            title: "2.3 Bundle com item opcional",
+            copy: `O bundle pode ter uma composição base e, ao mesmo tempo, oferecer itens adicionais por valor incremental. Esse formato suporta cenários como "por mais X reais, leve também".
 
-INSERT INTO bundle_item (id, bundle_id, product_id, quantity, required, created_at)
+Quando o \`pricing_type\` for \`FIXED\`, o preço do bundle representa apenas a composição base. Nesse caso, o item opcional deve ser somado ao valor final por meio de \`extra_price\`, sem alterar o preço base já definido para a oferta.
+
+Quando o \`pricing_type\` for \`SUM\`, o preço do bundle deve ser calculado a partir da soma dos itens incluídos. Se o cliente selecionar um item opcional, o sistema deve acrescentar esse item ao cálculo final, usando o valor definido em \`extra_price\` ou a regra comercial prevista para esse adicional.
+
+Em ambos os casos, o comportamento esperado é separar com clareza o que faz parte da composição base do bundle e o que entra como ampliação opcional da oferta.`,
+            sql: `-- Exemplo com pricing_type = FIXED
+INSERT INTO product_segment (id, context_id, name, code, description, created_at, updated_at)
 VALUES
-  (1, 1, 4, 1, TRUE, CURRENT_TIMESTAMP),
-  (2, 1, 5, 1, TRUE, CURRENT_TIMESTAMP);
+  (2, 1, 'Cursos Avulsos', 'CURSOS_AVULSOS', 'Produtos de compra pontual e combinacoes promocionais', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
-INSERT INTO payment_option (id, context_id, name, payment_type, active, created_at, updated_at)
+INSERT INTO product (id, product_segment_id, name, sku, price, is_recurring, auto_renew_default, status, created_at, updated_at)
+VALUES
+  (4, 2, 'Imersao IA', 'IMERSAO_IA', 299.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (5, 2, 'Curso de Lideranca', 'CURSO_LIDERANCA', 199.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO bundle (id, product_segment_id, name, pricing_type, price, is_recurring, auto_renew_default, status, created_at, updated_at)
+VALUES
+  (1, 2, 'Combo IA + Lideranca', 'FIXED', 299.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO bundle_item (id, bundle_id, product_id, quantity, item_role, extra_price, created_at)
+VALUES
+  (1, 1, 4, 1, 'INCLUDED', 0.00, CURRENT_TIMESTAMP),
+  (2, 1, 5, 1, 'OPTIONAL', 49.90, CURRENT_TIMESTAMP);
+
+-- Exemplo com pricing_type = SUM
+INSERT INTO bundle (id, product_segment_id, name, pricing_type, price, is_recurring, auto_renew_default, status, created_at, updated_at)
+VALUES
+  (2, 2, 'Combo IA + Lideranca Soma', 'SUM', NULL, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO bundle_item (id, bundle_id, product_id, quantity, item_role, extra_price, created_at)
+VALUES
+  (3, 2, 4, 1, 'INCLUDED', 0.00, CURRENT_TIMESTAMP),
+  (4, 2, 5, 1, 'OPTIONAL', 49.90, CURRENT_TIMESTAMP);`
+          }
+        ],
+        diagram: `erDiagram
+  SALES_CONTEXT ||--o{ PRODUCT_SEGMENT : "1:N"
+  PRODUCT_SEGMENT ||--o{ PRODUCT : "1:N"
+  PRODUCT_SEGMENT ||--o{ BUNDLE : "1:N"
+  BUNDLE ||--o{ BUNDLE_ITEM : "1:N"
+  PRODUCT ||--o{ BUNDLE_ITEM : "1:N"`
+      },
+      {
+        label: "Pagamento",
+        title: "03. Meios de pagamento e regras comerciais",
+        copy: `Esta camada define como cada operação comercial oferece pagamento ao cliente.
+
+Os meios de pagamento pertencem ao contexto de venda e podem variar por canal, operação e política comercial.
+
+As regras específicas por oferta ficam registradas separadamente, permitindo controlar parcelamento, desconto e elegibilidade por combinação entre produto ou bundle e método de pagamento.
+
+Na prática, essa camada permite configurar cenários como desconto no Pix, limite de parcelas no cartão ou regras específicas para uma oferta composta.
+
+### Casos de uso comuns
+
+- Um contexto permite cartão, Pix e boleto ao mesmo tempo.
+- Um produto aceita até 12 parcelas no cartão.
+- Outro produto aceita menos parcelas, mesmo usando o mesmo meio de pagamento.
+- Um bundle pode ter condição própria de parcelamento.
+- Uma oferta pode conceder desconto específico em Pix.
+
+### Combinações possíveis
+
+- Mesmo meio de pagamento com regras diferentes por oferta.
+- Produto com desconto no Pix e bundle sem desconto.
+- Oferta com cartão habilitado e boleto desabilitado.
+- Oferta simples e bundle compartilhando o mesmo meio de pagamento, mas com limites de parcelas diferentes.
+
+### Hierarquia de decisão
+
+1. Regra específica da oferta.
+2. Regra do segmento.
+3. Regra padrão do meio de pagamento.`,
+        subsections: [
+          {
+            title: "3.1 Contexto com múltiplos meios de pagamento",
+            copy: `Um mesmo contexto comercial pode disponibilizar mais de um método de pagamento ao cliente, combinando flexibilidade operacional e estratégia comercial.`,
+            sql: `INSERT INTO payment_option (id, context_id, name, payment_type, active, created_at, updated_at)
 VALUES
   (1, 1, 'Cartao de Credito', 'CREDIT_CARD', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   (2, 1, 'Pix', 'PIX', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  (3, 1, 'Boleto', 'BANK_SLIP', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-
-INSERT INTO offer_payment_option (id, target_type, target_external_id, payment_option_id, max_installments, discount_type, discount_value, active, created_at, updated_at)
+  (3, 1, 'Boleto', 'BANK_SLIP', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`
+          },
+          {
+            title: "3.2 Regras por oferta",
+            copy: `A mesma forma de pagamento pode ter condições diferentes conforme a oferta. Isso permite tratar parcelamento, desconto e elegibilidade por produto ou bundle.`,
+            sql: `INSERT INTO offer_payment_option (id, target_type, target_external_id, payment_option_id, max_installments, discount_type, discount_value, active, created_at, updated_at)
 VALUES
   (1, 'PRODUCT', 1, 1, 12, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   (2, 'PRODUCT', 2, 1, 12, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   (3, 'PRODUCT', 3, 1, 12, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   (4, 'PRODUCT', 4, 1, 6, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   (5, 'PRODUCT', 5, 1, 4, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  (6, 'BUNDLE', 1, 1, 8, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (6, 'BUNDLE', 1, 1, 8, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`
+          },
+          {
+            title: "3.3 Desconto no meio de pagamento",
+            copy: `A regra específica da oferta também permite incentivar um meio de pagamento com benefício financeiro, como desconto no Pix.`,
+            sql: `INSERT INTO offer_payment_option (id, target_type, target_external_id, payment_option_id, max_installments, discount_type, discount_value, active, created_at, updated_at)
+VALUES
   (7, 'PRODUCT', 1, 2, 1, 'PERCENTAGE', 5.00, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`
+          }
+        ],
+        diagram: `erDiagram
+  SALES_CONTEXT ||--o{ PAYMENT_OPTION : "1:N"
+  PAYMENT_OPTION ||--o{ OFFER_PAYMENT_OPTION : "1:N"`
       },
       {
         label: "Incentivo",
-        title: "03. Campanhas, cupons e governança promocional",
+        title: "04. Campanhas, cupons e governança promocional",
         copy: `Esta camada define como benefícios e incentivos são aplicados à venda.
 
 Ela contempla promoções automáticas e benefícios ativados por código, com regras de elegibilidade e convivência entre descontos.`,
@@ -144,7 +245,7 @@ Ela contempla promoções automáticas e benefícios ativados por código, com r
       },
       {
         label: "Conversão",
-        title: "04. Cliente, carrinho e pagamento",
+        title: "05. Cliente, carrinho e pagamento",
         copy: `Esta camada representa a jornada de compra do cliente.
 
 Ela transforma intenção de compra em carrinho, preço aplicado e pagamento.`,
@@ -166,7 +267,7 @@ Ela transforma intenção de compra em carrinho, preço aplicado e pagamento.`,
       },
       {
         label: "Canal e repasse",
-        title: "05. Parceiros, atribuição, comissão e payout",
+        title: "06. Parceiros, atribuição, comissão e payout",
         copy: `Esta camada fecha o ciclo comercial relacionado a parceiros e canais.
 
 Ela conecta origem da venda, atribuição comercial e remuneração dos parceiros.`,
@@ -198,7 +299,7 @@ Ela conecta origem da venda, atribuição comercial e remuneração dos parceiro
       PRODUCT_SEGMENT: ["id: Integer", "context_id: Integer", "name: Varchar", "code: Varchar", "description: Varchar", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
       PRODUCT: ["id: Integer", "product_segment_id: Integer", "name: Varchar", "sku: Varchar", "price: Decimal(12,2)", "is_recurring: Boolean", "recurrence_type: Varchar", "recurrence_interval: Integer", "auto_renew_default: Boolean", "status: Varchar", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
       BUNDLE: ["id: Integer", "product_segment_id: Integer", "name: Varchar", "pricing_type: Varchar", "price: Decimal(12,2)", "is_recurring: Boolean", "recurrence_type: Varchar", "recurrence_interval: Integer", "auto_renew_default: Boolean", "status: Varchar", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
-      BUNDLE_ITEM: ["id: Integer", "bundle_id: Integer", "product_id: Integer", "quantity: Integer", "required: Boolean", "created_at: Timestamp"],
+      BUNDLE_ITEM: ["id: Integer", "bundle_id: Integer", "product_id: Integer", "quantity: Integer", "item_role: Enum(INCLUDED|OPTIONAL|UPSELL)", "extra_price: Decimal(12,2)", "created_at: Timestamp"],
       PAYMENT_OPTION: ["id: Integer", "context_id: Integer", "name: Varchar", "payment_type: Varchar", "active: Boolean", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
       OFFER_PAYMENT_OPTION: ["id: Integer", "target_type: Varchar", "target_external_id: Integer", "payment_option_id: Integer", "max_installments: Integer", "discount_type: Varchar", "discount_value: Decimal(12,2)", "active: Boolean", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
       COUPON: ["id: Integer", "context_id: Integer", "code: Varchar", "discount_type: Varchar", "discount_value: Decimal(12,2)", "scope: Varchar", "stackable: Boolean", "active: Boolean", "valid_from: Timestamp", "valid_until: Timestamp", "min_subtotal: Decimal(12,2)", "max_discount: Decimal(12,2)", "usage_limit: Integer", "per_customer_limit: Integer", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
@@ -235,8 +336,36 @@ Ela conecta origem da venda, atribuição comercial e remuneração dos parceiro
 
     const renderMarkdown = (content = "") => window.marked ? window.marked.parse(content.trim()) : "";
 
+    const slugify = (value = "") =>
+      value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+    const renderSidebar = (items) => `
+      <nav class="doc-sidebar-card">
+        <p class="doc-sidebar-label">Navegação</p>
+        <div class="doc-sidebar-links">
+          ${items.map((section) => `
+            <div class="doc-sidebar-group">
+              <a class="doc-sidebar-link" href="#${section.id}">${section.title}</a>
+              ${section.subsections?.length ? `
+                <div class="doc-sidebar-sublinks">
+                  ${section.subsections.map((subsection) => `
+                    <a class="doc-sidebar-sublink" href="#${subsection.id}">${subsection.title}</a>
+                  `).join("")}
+                </div>
+              ` : ""}
+            </div>
+          `).join("")}
+        </div>
+      </nav>
+    `;
+
     const renderSection = (section) => `
-      <section class="doc-section">
+      <section class="doc-section" id="${section.id}">
         <div class="doc-content">
           <p class="doc-label">${section.label}</p>
           <h2 class="doc-title">${section.title}</h2>
@@ -247,6 +376,18 @@ Ela conecta origem da venda, atribuição comercial e remuneração dos parceiro
               <pre class="mermaid">${escapeHtml(section.diagram)}</pre>
             </div>
           ` : ""}
+          ${section.subsections ? section.subsections.map((subsection) => `
+            <div class="subsection-block mt-8" id="${subsection.id}">
+              <h3 class="subsection-title">${subsection.title}</h3>
+              ${subsection.copy ? `<div class="markdown-view mt-3">${renderMarkdown(subsection.copy)}</div>` : ""}
+              ${subsection.sql ? `
+                <details class="sql-example mt-5">
+                  <summary>Exemplo SQL</summary>
+                  <pre><code class="language-sql">${escapeHtml(subsection.sql)}</code></pre>
+                </details>
+              ` : ""}
+            </div>
+          `).join("") : ""}
           ${section.sql ? `
             <details class="sql-example mt-8">
               <summary>Exemplo SQL</summary>
@@ -309,8 +450,20 @@ Ela conecta origem da venda, atribuição comercial e remuneração dos parceiro
     };
 
     document.addEventListener("DOMContentLoaded", () => {
+      const sectionsWithIds = sections.map((section) => ({
+        ...section,
+        id: slugify(section.title),
+        subsections: section.subsections?.map((subsection) => ({
+          ...subsection,
+          id: slugify(subsection.title)
+        }))
+      }));
+
+      const sidebarRoot = document.getElementById("sidebar-root");
+      if (sidebarRoot) sidebarRoot.innerHTML = renderSidebar(sectionsWithIds);
+
       const sectionsRoot = document.getElementById("sections-root");
-      if (sectionsRoot) sectionsRoot.innerHTML = sections.map(renderSection).join("");
+      if (sectionsRoot) sectionsRoot.innerHTML = sectionsWithIds.map(renderSection).join("");
 
       if (window.hljs) window.hljs.highlightAll();
 
@@ -337,17 +490,22 @@ Ela conecta origem da venda, atribuição comercial e remuneração dos parceiro
 </head>
 <body class="bg-stone-50 font-['Inter'] text-stone-900">
   <header class="border-b border-stone-200 bg-white">
-    <div class="mx-auto max-w-6xl px-6 py-10">
+    <div class="mx-auto max-w-[1500px] px-6 py-10 text-center">
       <p class="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">Documentação</p>
       <h1 class="mt-3 text-4xl font-semibold tracking-tight">Proposta técnica da Alura Bank</h1>
-      <p class="mt-4 max-w-3xl text-base leading-7 text-stone-600">
+      <p class="mx-auto mt-4 max-w-3xl text-base leading-7 text-stone-600">
         Documento de referência da arquitetura funcional do domínio, com foco em estrutura, regras e apoio à evolução do modelo.
       </p>
     </div>
   </header>
 
-  <main class="mx-auto max-w-6xl px-6 py-10">
-    <div id="sections-root"></div>
+  <main class="mx-auto max-w-[1500px] px-6 py-10">
+    <div class="doc-layout">
+      <aside class="doc-sidebar">
+        <div id="sidebar-root"></div>
+      </aside>
+      <div id="sections-root" class="doc-main"></div>
+    </div>
   </main>
 </body>
 </html>

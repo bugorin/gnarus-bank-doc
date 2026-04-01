@@ -2,6 +2,71 @@ body {
   font-family: "Inter", sans-serif;
 }
 
+.doc-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.doc-sidebar {
+  position: sticky;
+  top: 2rem;
+}
+
+.doc-sidebar-card {
+  border: 1px solid rgb(231 229 228);
+  border-radius: 1rem;
+  background: white;
+  padding: 1rem;
+}
+
+.doc-sidebar-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(120 113 108);
+}
+
+.doc-sidebar-links {
+  margin-top: 0.9rem;
+}
+
+.doc-sidebar-group + .doc-sidebar-group {
+  margin-top: 0.9rem;
+}
+
+.doc-sidebar-link,
+.doc-sidebar-sublink {
+  display: block;
+  color: rgb(68 64 60);
+  text-decoration: none;
+}
+
+.doc-sidebar-link {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.doc-sidebar-sublink {
+  margin-top: 0.35rem;
+  margin-left: 0.75rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: rgb(120 113 108);
+}
+
+.doc-sidebar-link:hover,
+.doc-sidebar-sublink:hover {
+  color: rgb(28 25 23);
+}
+
+.doc-main {
+  min-width: 0;
+}
+
 .doc-section {
   border: 1px solid rgb(231 229 228);
   border-radius: 1.5rem;
@@ -213,6 +278,14 @@ body {
 }
 
 @media (max-width: 768px) {
+  .doc-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-sidebar {
+    position: static;
+  }
+
   .doc-section {
     padding: 1.2rem;
   }
