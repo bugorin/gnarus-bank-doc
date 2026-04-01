@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arquitetura do Domínio Comercial</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/sql.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+    mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+
+    const sections = [
+      {
+        label: "Fundação",
+        title: "01. Unidade de negócio e contexto de venda",
+        copy: `Esta camada sustenta dois objetivos centrais da solução: operar múltiplas unidades de negócio dentro de uma mesma base e manter a visão consolidada do cliente em todo o grupo.
+
+A estrutura foi pensada para abrigar frentes como Alura B2C, Alura B2B, Lumina, Latam e, futuramente, PM3 e StartSe, preservando identidade própria para cada operação comercial.
+
+Ao mesmo tempo, o modelo garante rastreabilidade do usuário entre essas unidades. Isso permite saber, de forma unificada, tudo o que cada cliente comprou, contratou ou consumiu ao longo da jornada, independentemente da BU em que a relação aconteceu.
+
+Na prática, essa base dá suporte para expandir o portfólio do grupo sem perder clareza operacional, histórico de relacionamento e capacidade de análise sobre comportamento de compra.`,
+        diagram: `erDiagram
+  BUSINESS_UNIT ||--o{ SALES_CONTEXT : "1:N"
+  CUSTOMER ||--o{ CUSTOMER_BUSINESS_UNIT : "1:N"
+  BUSINESS_UNIT ||--o{ CUSTOMER_BUSINESS_UNIT : "1:N"`,
+        sql: `INSERT INTO business_unit (id, name, code, created_at, updated_at)
+VALUES
+  (1, 'Alura B2C', 'ALURA_B2C', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (2, 'Alura B2B', 'ALURA_B2B', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (3, 'Lumina', 'LUMINA', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (4, 'Latam', 'LATAM', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO sales_context (id, business_unit_id, name, currency, channel, status, created_at, updated_at)
+VALUES
+  (1, 1, 'Alura B2C Brasil', 'BRL', 'WEB', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (2, 2, 'Alura B2B Direct Sales', 'BRL', 'SALES', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (3, 2, 'Alura B2B Partners', 'BRL', 'PARTNER', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (4, 3, 'Lumina Web', 'BRL', 'WEB', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (5, 4, 'Latam USD', 'USD', 'WEB', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`
+      },
+      {
+        label: "Oferta",
+        title: "02. Segmentos, produtos, bundles e meios de pagamento",
+        copy: `Esta camada define a oferta disponível em cada operação comercial.
+
+Ela organiza segmentos, produtos, bundles e meios de pagamento dentro de uma mesma lógica comercial.
+
+Os segmentos estruturam o catálogo. Os produtos representam ofertas simples. Os bundles representam ofertas compostas.
+
+Os meios de pagamento completam essa camada, porque também fazem parte da estratégia comercial da oferta.
+
+A política de parcelamento e incentivo por pagamento pode ser definida pela combinação entre oferta e meio de pagamento.
+
+### Regras da camada
+
+#### Regras de preço do grupo
+
+- \`pricing_type\` define como o preço da oferta composta será tratado.
+- Exemplos: \`FIXED\`, \`SUM\`, \`DISCOUNTED_SUM\`, \`CUSTOM\`.
+
+#### Leituras possíveis para \`pricing_type\`
+
+- \`FIXED\`: o grupo possui preço próprio.
+- \`SUM\`: o preço é a soma dos itens.
+- \`DISCOUNTED_SUM\`: o preço é a soma dos itens com desconto.
+- \`CUSTOM\`: o preço segue uma regra específica.
+
+#### Hierarquia para pagamento e parcelamento
+
+1. Regra específica da oferta.
+2. Regra do segmento.
+3. Regra padrão do meio de pagamento.`,
+        diagram: `erDiagram
+  SALES_CONTEXT ||--o{ PRODUCT_SEGMENT : "1:N"
+  PRODUCT_SEGMENT ||--o{ PRODUCT : "1:N"
+  PRODUCT_SEGMENT ||--o{ BUNDLE : "1:N"
+  BUNDLE ||--o{ BUNDLE_ITEM : "1:N"
+  PRODUCT ||--o{ BUNDLE_ITEM : "1:N"
+  SALES_CONTEXT ||--o{ PAYMENT_OPTION : "1:N"
+  PAYMENT_OPTION ||--o{ OFFER_PAYMENT_OPTION : "1:N"`,
+        sql: `INSERT INTO product_segment (id, context_id, name, code, description, created_at, updated_at)
+VALUES
+  (1, 1, 'Planos Anuais', 'PLANOS_ANUAIS', 'Ofertas recorrentes com opcao de Plus, Pro e UltraLab', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (2, 1, 'Cursos Avulsos', 'CURSOS_AVULSOS', 'Produtos de compra pontual', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO product (id, product_segment_id, name, sku, price, is_recurring, auto_renew_default, status, created_at, updated_at)
+VALUES
+  (1, 1, 'Plano Anual Plus', 'PLANO_PLUS_ANUAL', 129.90, TRUE, TRUE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (2, 1, 'Plano Anual Pro', 'PLANO_PRO_ANUAL', 189.90, TRUE, TRUE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (3, 1, 'Plano Anual UltraLab', 'PLANO_ULTRALAB_ANUAL', 249.90, TRUE, TRUE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (4, 2, 'Imersao IA', 'IMERSAO_IA', 299.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (5, 2, 'Curso de Lideranca', 'CURSO_LIDERANCA', 199.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO bundle (id, product_segment_id, name, pricing_type, price, is_recurring, auto_renew_default, status, created_at, updated_at)
+VALUES
+  (1, 2, 'Combo IA + Lideranca', 'FIXED', 449.90, FALSE, FALSE, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO bundle_item (id, bundle_id, product_id, quantity, required, created_at)
+VALUES
+  (1, 1, 4, 1, TRUE, CURRENT_TIMESTAMP),
+  (2, 1, 5, 1, TRUE, CURRENT_TIMESTAMP);
+
+INSERT INTO payment_option (id, context_id, name, payment_type, active, created_at, updated_at)
+VALUES
+  (1, 1, 'Cartao de Credito', 'CREDIT_CARD', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (2, 1, 'Pix', 'PIX', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (3, 1, 'Boleto', 'BANK_SLIP', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO offer_payment_option (id, target_type, target_external_id, payment_option_id, max_installments, discount_type, discount_value, active, created_at, updated_at)
+VALUES
+  (1, 'PRODUCT', 1, 1, 12, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (2, 'PRODUCT', 2, 1, 12, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (3, 'PRODUCT', 3, 1, 12, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (4, 'PRODUCT', 4, 1, 6, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (5, 'PRODUCT', 5, 1, 4, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (6, 'BUNDLE', 1, 1, 8, NULL, NULL, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (7, 'PRODUCT', 1, 2, 1, 'PERCENTAGE', 5.00, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`
+      },
+      {
+        label: "Incentivo",
+        title: "03. Campanhas, cupons e governança promocional",
+        copy: `Esta camada define como benefícios e incentivos são aplicados à venda.
+
+Ela contempla promoções automáticas e benefícios ativados por código, com regras de elegibilidade e convivência entre descontos.`,
+        diagram: `erDiagram
+  SALES_CONTEXT ||--o{ COUPON : "1:N"
+  SALES_CONTEXT ||--o{ COUPON_GROUP : "1:N"
+  COUPON ||--o{ COUPON_GROUP_MEMBER : "1:N"
+  COUPON_GROUP ||--o{ COUPON_GROUP_MEMBER : "1:N"
+  COUPON ||--o{ COUPON_PRODUCT_TARGET : "1:N"
+  PRODUCT ||--o{ COUPON_PRODUCT_TARGET : "1:N"
+  COUPON ||--o{ COUPON_BUNDLE_TARGET : "1:N"
+  BUNDLE ||--o{ COUPON_BUNDLE_TARGET : "1:N"
+  SALES_CONTEXT ||--o{ CAMPAIGN : "1:N"
+  CAMPAIGN ||--o{ CAMPAIGN_RULE : "1:N"
+  CAMPAIGN ||--o{ CAMPAIGN_COUPON_GROUP_RULE : "1:N"
+  COUPON_GROUP ||--o{ CAMPAIGN_COUPON_GROUP_RULE : "1:N"`
+      },
+      {
+        label: "Conversão",
+        title: "04. Cliente, carrinho e pagamento",
+        copy: `Esta camada representa a jornada de compra do cliente.
+
+Ela transforma intenção de compra em carrinho, preço aplicado e pagamento.`,
+        diagram: `erDiagram
+  CUSTOMER ||--o{ CUSTOMER_PAYMENT_METHOD : "1:N"
+  CUSTOMER ||--o{ CUSTOMER_PRODUCT_PREFERENCE : "1:N"
+  CUSTOMER ||--o{ CART : "1:N"
+  SALES_CONTEXT ||--o{ CART : "1:N"
+  CART ||--o{ CART_ITEM : "1:N"
+  PRODUCT ||--o{ CART_ITEM : "1:N"
+  BUNDLE ||--o{ CART_ITEM : "1:N"
+  CART ||--o{ CART_COUPON : "1:N"
+  COUPON ||--o{ CART_COUPON : "1:N"
+  CART ||--o{ CART_ADJUSTMENT : "1:N"
+  CART_ITEM ||--o{ CART_ADJUSTMENT : "1:N"
+  CART ||--o{ CART_PAYMENT : "1:N"
+  PAYMENT_OPTION ||--o{ CART_PAYMENT : "1:N"
+  CUSTOMER_PAYMENT_METHOD ||--o{ CART_PAYMENT : "1:N"`
+      },
+      {
+        label: "Canal e repasse",
+        title: "05. Parceiros, atribuição, comissão e payout",
+        copy: `Esta camada fecha o ciclo comercial relacionado a parceiros e canais.
+
+Ela conecta origem da venda, atribuição comercial e remuneração dos parceiros.`,
+        diagram: `erDiagram
+  SALES_CONTEXT ||--o{ PARTNER : "1:N"
+  PARTNER ||--o{ PARTNER_LINK : "1:N"
+  PARTNER ||--o{ PARTNER_BILLING_LINK : "1:N"
+  SALES_CONTEXT ||--o{ PARTNER_BILLING_LINK : "1:N"
+  PRODUCT ||--o{ PARTNER_BILLING_LINK : "1:N"
+  BUNDLE ||--o{ PARTNER_BILLING_LINK : "1:N"
+  CAMPAIGN ||--o{ PARTNER_BILLING_LINK : "1:N"
+  COUPON ||--o{ PARTNER_BILLING_LINK : "1:N"
+  PAYMENT_OPTION ||--o{ PARTNER_BILLING_LINK : "1:N"
+  CART ||--o{ ATTRIBUTION : "1:N"
+  PARTNER ||--o{ ATTRIBUTION : "1:N"
+  PARTNER_LINK ||--o{ ATTRIBUTION : "1:N"
+  COUPON ||--o{ ATTRIBUTION : "1:N"
+  PARTNER ||--o{ COMMISSION : "1:N"
+  ATTRIBUTION ||--|| COMMISSION : "1:1"
+  PARTNER ||--o{ PAYOUT : "1:N"`
+      }
+    ];
+
+    const entityAttributes = {
+      BUSINESS_UNIT: ["id: Integer", "name: Varchar", "code: Varchar", "created_at: Timestamp", "updated_at: Timestamp"],
+      SALES_CONTEXT: ["id: Integer", "business_unit_id: Integer", "name: Varchar", "currency: Varchar", "channel: Varchar", "status: Varchar", "created_at: Timestamp", "updated_at: Timestamp"],
+      CUSTOMER: ["id: Integer", "name: Varchar", "type: Enum(PF|PJ)", "document: Varchar", "info: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      CUSTOMER_BUSINESS_UNIT: ["id: Integer", "customer_id: Integer", "business_unit_id: Integer", "configs: Json", "created_at: Timestamp"],
+      PRODUCT_SEGMENT: ["id: Integer", "context_id: Integer", "name: Varchar", "code: Varchar", "description: Varchar", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      PRODUCT: ["id: Integer", "product_segment_id: Integer", "name: Varchar", "sku: Varchar", "price: Decimal(12,2)", "is_recurring: Boolean", "recurrence_type: Varchar", "recurrence_interval: Integer", "auto_renew_default: Boolean", "status: Varchar", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      BUNDLE: ["id: Integer", "product_segment_id: Integer", "name: Varchar", "pricing_type: Varchar", "price: Decimal(12,2)", "is_recurring: Boolean", "recurrence_type: Varchar", "recurrence_interval: Integer", "auto_renew_default: Boolean", "status: Varchar", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      BUNDLE_ITEM: ["id: Integer", "bundle_id: Integer", "product_id: Integer", "quantity: Integer", "required: Boolean", "created_at: Timestamp"],
+      PAYMENT_OPTION: ["id: Integer", "context_id: Integer", "name: Varchar", "payment_type: Varchar", "active: Boolean", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      OFFER_PAYMENT_OPTION: ["id: Integer", "target_type: Varchar", "target_external_id: Integer", "payment_option_id: Integer", "max_installments: Integer", "discount_type: Varchar", "discount_value: Decimal(12,2)", "active: Boolean", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      COUPON: ["id: Integer", "context_id: Integer", "code: Varchar", "discount_type: Varchar", "discount_value: Decimal(12,2)", "scope: Varchar", "stackable: Boolean", "active: Boolean", "valid_from: Timestamp", "valid_until: Timestamp", "min_subtotal: Decimal(12,2)", "max_discount: Decimal(12,2)", "usage_limit: Integer", "per_customer_limit: Integer", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      COUPON_GROUP: ["id: Integer", "context_id: Integer", "name: Varchar", "code: Varchar", "description: Varchar", "max_coupons_per_cart: Integer", "created_at: Timestamp", "updated_at: Timestamp"],
+      COUPON_GROUP_MEMBER: ["id: Integer", "coupon_id: Integer", "coupon_group_id: Integer", "created_at: Timestamp"],
+      COUPON_PRODUCT_TARGET: ["id: Integer", "coupon_id: Integer", "product_id: Integer"],
+      COUPON_BUNDLE_TARGET: ["id: Integer", "coupon_id: Integer", "bundle_id: Integer"],
+      CAMPAIGN: ["id: Integer", "context_id: Integer", "name: Varchar", "reference_url: Varchar", "type: Varchar", "stackable: Boolean", "priority: Integer", "coupon_policy: Varchar", "active: Boolean", "valid_from: Timestamp", "valid_until: Timestamp", "min_subtotal: Decimal(12,2)", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      CAMPAIGN_RULE: ["id: Integer", "campaign_id: Integer", "target_type: Varchar", "target_external_id: Varchar", "discount_type: Varchar", "discount_value: Decimal(12,2)", "priority: Integer", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      CAMPAIGN_COUPON_GROUP_RULE: ["id: Integer", "campaign_id: Integer", "coupon_group_id: Integer", "rule_type: Varchar", "created_at: Timestamp"],
+      CUSTOMER_PAYMENT_METHOD: ["id: Integer", "customer_id: Integer", "context_id: Integer", "payment_option_id: Integer", "provider: Varchar", "token: Varchar", "brand: Varchar", "last4: Varchar", "holder_name: Varchar", "exp_month: Integer", "exp_year: Integer", "is_default: Boolean", "reusable: Boolean", "status: Varchar", "consented_at: Timestamp", "revoked_at: Timestamp", "info: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      CUSTOMER_PRODUCT_PREFERENCE: ["id: Integer", "customer_id: Integer", "target_type: Varchar", "target_external_id: Varchar", "preference_type: Varchar", "status: Varchar", "source: Varchar", "effective_at: Timestamp", "expires_at: Timestamp", "info: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      CART: ["id: Integer", "customer_id: Integer", "context_id: Integer", "status: Varchar", "created_at: Timestamp", "updated_at: Timestamp"],
+      CART_ITEM: ["id: Integer", "cart_id: Integer", "product_id: Integer", "bundle_id: Integer", "quantity: Integer", "unit_price: Decimal(12,2)", "list_price: Decimal(12,2)", "final_price: Decimal(12,2)", "metadata: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      CART_COUPON: ["id: Integer", "cart_id: Integer", "coupon_id: Integer", "code: Varchar", "status: Varchar", "created_at: Timestamp"],
+      CART_ADJUSTMENT: ["id: Integer", "cart_id: Integer", "cart_item_id: Integer", "adjustment_type: Varchar", "reference_id: Integer", "description: Varchar", "amount: Decimal(12,2)", "created_at: Timestamp"],
+      CART_PAYMENT: ["id: Integer", "cart_id: Integer", "payment_option_id: Integer", "customer_payment_method_id: Integer", "amount: Decimal(12,2)", "status: Varchar", "provider_transaction_id: Varchar", "info: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      PARTNER: ["id: Integer", "context_id: Integer", "name: Varchar", "code: Varchar", "type: Varchar", "status: Varchar", "info: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      PARTNER_LINK: ["id: Integer", "partner_id: Integer", "code: Varchar", "url: Varchar", "utm_source: Varchar", "utm_medium: Varchar", "utm_campaign: Varchar", "active: Boolean", "created_at: Timestamp", "updated_at: Timestamp"],
+      PARTNER_BILLING_LINK: ["id: Integer", "partner_id: Integer", "context_id: Integer", "name: Varchar", "code: Varchar", "url: Varchar", "active: Boolean", "expires_at: Timestamp", "product_id: Integer", "bundle_id: Integer", "campaign_id: Integer", "coupon_id: Integer", "payment_option_id: Integer", "configs: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      ATTRIBUTION: ["id: Integer", "cart_id: Integer", "order_ref: Varchar", "partner_id: Integer", "partner_link_id: Integer", "coupon_id: Integer", "attribution_type: Varchar", "info: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      COMMISSION: ["id: Integer", "partner_id: Integer", "attribution_id: Integer", "commission_type: Varchar", "commission_value: Decimal(12,2)", "base_amount: Decimal(12,2)", "commission_amount: Decimal(12,2)", "status: Varchar", "info: Json", "created_at: Timestamp", "updated_at: Timestamp"],
+      PAYOUT: ["id: Integer", "partner_id: Integer", "amount: Decimal(12,2)", "status: Varchar", "reference: Varchar", "info: Json", "created_at: Timestamp", "paid_at: Timestamp"]
+    };
+
+    const normalizeEntityKey = (label) => label.replace(/\s+/g, "_").replace(/\//g, "_").toUpperCase();
+    const escapeHtml = (value = "") =>
+      value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const renderMarkdown = (content = "") => window.marked ? window.marked.parse(content.trim()) : "";
+
+    const renderSection = (section) => `
+      <section class="doc-section">
+        <div class="doc-content">
+          <p class="doc-label">${section.label}</p>
+          <h2 class="doc-title">${section.title}</h2>
+          ${section.copy ? `<div class="markdown-view mt-6">${renderMarkdown(section.copy)}</div>` : ""}
+          ${section.diagram ? `
+            <div class="diagram-wrap mt-8">
+              <p class="diagram-hint">Passe o mouse sobre uma entidade para ver detalhes.</p>
+              <pre class="mermaid">${escapeHtml(section.diagram)}</pre>
+            </div>
+          ` : ""}
+          ${section.sql ? `
+            <details class="sql-example mt-8">
+              <summary>Exemplo SQL</summary>
+              <pre><code class="language-sql">${escapeHtml(section.sql)}</code></pre>
+            </details>
+          ` : ""}
+        </div>
+      </section>
+    `;
+
+    let tooltip;
+
+    const showTooltip = (event, entityName) => {
+      const attributes = entityAttributes[entityName];
+      if (!attributes || !tooltip) return;
+
+      tooltip.querySelector(".entity-tooltip-title").textContent = entityName;
+      tooltip.querySelector(".entity-tooltip-body").innerHTML = `
+        <table class="entity-tooltip-table">
+          <thead><tr><th>Campo</th><th>Tipo</th></tr></thead>
+          <tbody>
+            ${attributes.map((attribute) => {
+              const [name, type] = attribute.split(": ");
+              return `<tr><td><code>${name}</code></td><td>${type}</td></tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      `;
+
+      tooltip.classList.add("visible");
+      moveTooltip(event);
+    };
+
+    const hideTooltip = () => tooltip?.classList.remove("visible");
+
+    const moveTooltip = (event) => {
+      if (!tooltip) return;
+      const offset = 18;
+      const maxLeft = window.innerWidth - 440;
+      const maxTop = window.innerHeight - 240;
+      tooltip.style.left = `${Math.min(event.clientX + offset, maxLeft)}px`;
+      tooltip.style.top = `${Math.min(event.clientY + offset, maxTop)}px`;
+    };
+
+    const bindEntityHover = () => {
+      document.querySelectorAll(".diagram-wrap").forEach((wrap) => {
+        if (wrap.dataset.bound === "true") return;
+        const nodes = wrap.querySelectorAll("svg g.node");
+        if (!nodes.length) return;
+        wrap.dataset.bound = "true";
+        nodes.forEach((node) => {
+          const entityName = normalizeEntityKey(node.textContent.trim());
+          if (!entityAttributes[entityName]) return;
+          node.classList.add("interactive-entity");
+          node.addEventListener("mouseenter", (event) => showTooltip(event, entityName));
+          node.addEventListener("mousemove", moveTooltip);
+          node.addEventListener("mouseleave", hideTooltip);
+        });
+      });
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const sectionsRoot = document.getElementById("sections-root");
+      if (sectionsRoot) sectionsRoot.innerHTML = sections.map(renderSection).join("");
+
+      if (window.hljs) window.hljs.highlightAll();
+
+      tooltip = document.createElement("div");
+      tooltip.className = "entity-tooltip";
+      tooltip.innerHTML = '<div class="entity-tooltip-title"></div><div class="entity-tooltip-body"></div>';
+      document.body.appendChild(tooltip);
+
+      let attempts = 0;
+      const interval = setInterval(() => {
+        bindEntityHover();
+        attempts += 1;
+        const rendered = document.querySelectorAll(".diagram-wrap svg").length === document.querySelectorAll(".diagram-wrap").length;
+        if (rendered || attempts >= 20) clearInterval(interval);
+      }, 250);
+
+      window.addEventListener("scroll", hideTooltip, { passive: true });
+    });
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./assets/styles.css">
+</head>
+<body class="bg-stone-50 font-['Inter'] text-stone-900">
+  <header class="border-b border-stone-200 bg-white">
+    <div class="mx-auto max-w-6xl px-6 py-10">
+      <p class="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">Documentação</p>
+      <h1 class="mt-3 text-4xl font-semibold tracking-tight">Proposta técnica da Alura Bank</h1>
+      <p class="mt-4 max-w-3xl text-base leading-7 text-stone-600">
+        Documento de referência da arquitetura funcional do domínio, com foco em estrutura, regras e apoio à evolução do modelo.
+      </p>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-6 py-10">
+    <div id="sections-root"></div>
+  </main>
+</body>
+</html>
